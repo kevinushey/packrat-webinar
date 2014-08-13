@@ -1,148 +1,114 @@
 ---
 title: "Packrat"
 subtitle: "A Dependency Management System for R"
-author: "J.J. Allaire (jj@rstudio.com) and Kevin Ushey (kevin@rstudio.com)"
-date: "July 3rd, 2014"
+author: "Kevin Ushey (kevin@rstudio.com)"
+date: "August 13, 2014"
 output:
   ioslides_presentation: default
 css: styles.css
 ---
 
-## Motivation: Reproducible Research
+## Packrat
 
-* Foundational as a basis for scientific claims
+Packrat is an R package that helps you manage your project's R package
+dependencies in a way that is:
 
-    "The goal of reproducible research is to tie specific instructions to data analysis and experimental data so that scholarship can be recreated, better understood and verified." *CRAN Task View on Reproducible Research* 
+> * **Reproducible** <p style="margin-top: 10px;">Packrat records the exact package versions you depend on, and ensures those exact versions are the ones that get installed wherever you go.</p>
 
-* Crisis of confidence in results of data analysis due to lack of reproducibility.
+> * **Isolated** <p style="margin-top: 10px;">Installing a new or updated package for one project won't break your other projects, and vice versa. That's because packrat gives each project its own private package library.</p>
 
-* Across time (running the same analysis again years later)
+> * **Portable** <p style="margin-top: 10px;">Easily transport your projects from one computer to another, even across different platforms. Packrat makes it easy to install the packages your project depends on.</p>
+
+## Reproducibility
+
+Packrat helps you to save and preserve the environment in which an R project
+or analysis is run in.
+
+Ever finished an analysis, come back a year later, and asked:
+
+> * _Who wrote this garbage code?_ <span style="display: inline-block; font-size: 9pt; margin-bottom: 12px;">(oops, it was me)</span>
+
+> * _Why is `lattice` throwing an error when I make figures now? Apparently its API changed?_
+
+> * _Okay, I re-ran the analysis, but now `nlme` is complaining about model convergence: I swear this didn't happen before..._
+
+> * _What happened to that R package we got from our collaborators? I swear it's in my e-mail somewhere..._
+
+## Reproducibility {.build}
+
+Packrat helps you solve this problem by:
+
+> - **Ensuring package sources are stored alongside your project,**
+
+> - **Tracking package versions so that, if you need to roll back a package for some reason, you can do so**
+
+Packrat lets you build a sandbox in which an analysis can run, and helps you
+ensure that sandbox can persist over time.
+
+## Isolation {.build}
+
+With the current state of the world, when you install an R package, it gets
+installed into a **global** library -- all projects on your system have
+access to that same library ...
+
+... but only one version of a particular package can be installed at a time.
+
+This is problematic if you have older projects that, for example, depend on
+older versions of `Rcpp`, but want to leverage features of newer `Rcpp` for
+other projects.
+
+We need some mechanism of **isolating** projects, and their dependencies, from
+each other -- and Packrat helps us do this.
+
+## Isolation {.build}
+
+Packrat makes your projects more isolated by giving each project its own
+**private packrat library**.
+
+A `library` is just a folder of R packages -- when you make a call to the
+(poorly named) `library` function, e.g.
+
+    library(dplyr)
     
-* Across space (moving code from a desktop to a server, or between the systems of collaborators)
+R attempts to load `dplyr` from your user, or system, library.
 
-* In R we do better than many other environments, but we can still do better.
+If you use Packrat to manage an R project, it will tell R to use and load packages
+from the project's **private library** instead.
 
+This also means that calls to `install.packages`, `devtools::install_github`,
+`biocLite` and others will install into the **private library** by default --
+no need to worry about clobbering packages in your user library!
 
-## Tools for Reproducibility
+## Portability {.build}
 
-> * **Computation**
-    - Can we execute again and get the same results?
-    - Yes, because we preserve our analysis in R Scripts
+Because Packrat collects and tracks all project dependencies, it ensures that
+the environment used for a particular analysis is **portable** across different
+systems.
 
-> * **Output**
-    - Can we produce the same end-user output consistently? 
-    - Yes, because we have tools like Sweave and knitr
+If you are working with collaborators, you can ensure that everyone working on
+a Packrat project is using the **same version** of any R packages your project
+depends on.
 
-> * **Configuration**
-    - Can we run our computations and create our output with the same configuration across time and space?
-    - No (or yes only with a lot of effort and bother)
+# Using Packrat {.segue}
 
-## Configuration Rot
+## Main Packrat Verbs {.build}
 
-* As packages evolve over the years they inevitably:
-    - At best, change behavior in subtle ways
-    - At worst, outright break previous code
-   
-* As a result, an analysis or report that works today against e.g. R 3.1.0 is unlikely to work without modification in 5 years time.
+Packrat maintains two sets of state:
 
-* This is already a widely observed problem with R scripts and Sweave/knitr documents that users attempt to re-run years (or even months) after they are originally developed.
+> - The **snapshot** of your project's R dependencies, and
 
-## R-devel [RFC] A case for freezing CRAN
+> - The **private library** powering your project.
 
-http://goo.gl/k77z6F
+Packrat has two main verbs for interacting with these two components:
 
-- Proposal to freeze CRAN along with R releases.
+> `packrat::snapshot()` records the package versions used by a project and downloads their source code for storage with the project,
 
-- Projects built against a given version of R/CRAN would be able to rely on stable package versions, and therefore be expected to continue to work in the future.
+> `packrat::restore()` applies the previous snapshot to a directory (building packages from source as necessary).
 
-- Attractive notion because it's simple and requires no extra effort from users.
+## Demo
 
-## What if we could freeze CRAN?
-
-That would solve part of the problem, but wouldn't account for:
-
-* Packages obtained from other repositories
-
-* Development versions of packages installed from R-Forge and GitHub
-
-* Internally developed packages
-
-* Users (inevitably) needing one more feature or bugfix and requiring the very latest version of a package.
-
-## What would a frozen CRAN not have? {.build}
-
-* Bug fixes delivered in a timely fashion.
-
-* Vitality and dynamism associated with making work available immediately to the community.
-
-* The ability to use older versions of R with newer versions of packages.
-
-"To me it boils down to one simple question: is an update to a package on CRAN more likely to (1) fix a bug, (2) introduce a bug or downward incompatibility, or (3) add a new feature or fix a compatibility problem without introducing a bug? I think the probability of (1) | (3) is much greater than the probability of (2), hence the current approach maximizes user benefit." *Frank Harrell*
-
-"People then will start finding ways around these limitations and then we're back to square one of having people use a set of R packages and R versions that could potentially be all over the place."
-*Gavin Simpson*
-
-## Freezing is the answer, but what to freeze?
-
-* Freezing CRAN solves only a subset of the problem, and introduces its own problems.
-    - No changes to CRAN are required to provide a highly robust system of R package dependency management!
-    
-* The only complete answer to this problem is freezing projects. 
-
-* Individual projects should be able to freeze arbitrary combinations of R packages with a guarantee of being able to use them in the future.
-
-
-
-## How do other environments handle these concerns?
-
-* Most have some variation of:
-    - A per-project private library
-    - The specification of explicit versions (or version ranges) of each dependency 
-    - The ability to programatically reconstruct the library based on the specifications
-  
-* Some examples:
-    - Ruby Bundler (<http://bundler.io/>)
-    - Node.js NPM (<https://www.npmjs.org/>)
-    - Python Virtualenv (<https://virtualenv.pypa.io/en/latest/>)
-   
-## How might a solution tailored to R users look? 
-
-> * Fundamental difference at work:  R users do not self-identify as software developers and therefore have little tolerance for additional workflow overhead.
-
-> * Any solution must therefore be highly automated, and work with both existing projects created without packrat as well as new projects.
-
-> * We want the same benefits (private library and capturing of dependencies), with none of the following required:
-    - Hand editing of dependency declarations
-    - Manual retrieval and management of source code 
-
-
-## Packrat as a Possible Solution
-
-> * Packrat is an R package that implements a dependency management system for R:
-    - GitHub: https://github.com/rstudio/packrat
-    - Will be submitted to CRAN later this year
-    
-> * Creates a private package library for a given R project (i.e. working directory)
-
-> * `packrat::snapshot()` records the package versions used by a project and downloads their source code for storage with the project
-
-> * `packrat::restore()` applies the previous snapshot to a directory (building packages from source as necessary)
-    
-## Using Packrat
-
-Packrat appropriately modifies the library paths so all existing R workflows will be applied to the project private library.
-
-While within Packrat mode,
-
-* `install.packages()`, `remove.packages()`, `update.packages()` `devtools::install_github()`...
-
-will modify the **private project library**, *not* the **user library**!
-
-* `library` and `require` will only load packages from the private project library, _not_ the user library -- thereby achieving isolation.
-
-* `packrat::snapshot` records the packages used by a project and downloads their source code for storage with the project,
-    
-* `packrat::restore` applies the last snapshot to the project library (rebuilding packages from source as necessary)
+These are concepts much more easily explored with an interactive demo, so let's
+start!
 
 ## Packrat Fundamentals
 
@@ -174,11 +140,11 @@ packrat::init()
 ```
 Adding these packages to packrat:
             _          
-    packrat   0.3.0
+    packrat   0.4.0.12
 
-Fetching sources for packrat (0.3.0) ... OK (GitHub)
+Fetching sources for packrat (0.4.0.12) ... OK (GitHub)
 Snapshot written to '~/projects/reshape/packrat/packrat.lock'
-Installing packrat (0.3.0) ... OK (built source)
+Installing packrat (0.4.0.12) ... OK (built source)
 Initialization complete!
 ```
 
@@ -260,7 +226,7 @@ packrat::unbundle("reshape-2014-06-24.tar.gz", where = "~/Desktop")
 ```
 - Untarring 'reshape-2014-06-24.tar.gz' in directory '~/Desktop'...
 - Restoring project library...
-Installing packrat (0.3.0) ... OK (built source)
+Installing packrat (0.4.0.12) ... OK (built source)
 Installing Rcpp (0.11.2.1) ... OK (built source)
 Installing stringr (0.6.2) ... OK (downloaded binary)
 Installing plyr (1.8.1) ... OK (downloaded binary)
@@ -268,11 +234,6 @@ Installing reshape2 (1.4) ... OK (downloaded binary)
 Done! The project has been unbundled and restored at:
 - "~/Desktop/reshape"
 ```
-
----
-
-![packrat-anatomy](packrat-anatomy.png)
-
 
 ## Packrat and Version Control
 
@@ -283,8 +244,6 @@ Done! The project has been unbundled and restored at:
 * Isolated, portable, and reproducible environment for R projects
 
 * Capture all source code required to reproduce configurations
-
-* Requires no changes to CRAN and capable of working with arbitrary other repositories
 
 * Flexible and easy to use solution to the problem of reproducibility:
     - "One button" snapshot/restore
